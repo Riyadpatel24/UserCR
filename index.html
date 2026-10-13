@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Review Summary</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #17212b;
+        background: #f4f7fa;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 48px 20px;
+        box-sizing: border-box;
+      }
+
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px;
+        background: #fff;
+        border: 1px solid #e1e8ef;
+        border-radius: 16px;
+        box-shadow: 0 12px 36px rgb(28 48 68 / 8%);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1.6rem, 4vw, 2rem);
+      }
+
+      p {
+        color: #526170;
+        line-height: 1.6;
+      }
+
+      label {
+        display: block;
+        margin: 24px 0 8px;
+        font-weight: 650;
+      }
+
+      textarea {
+        display: block;
+        width: 100%;
+        min-height: 220px;
+        box-sizing: border-box;
+        padding: 14px;
+        border: 1px solid #bdc9d5;
+        border-radius: 10px;
+        font: inherit;
+        line-height: 1.5;
+        resize: vertical;
+      }
+
+      textarea:focus {
+        outline: 3px solid rgb(36 112 196 / 20%);
+        border-color: #2470c4;
+      }
+
+      button {
+        margin-top: 16px;
+        padding: 11px 18px;
+        border: 0;
+        border-radius: 9px;
+        background: #1769aa;
+        color: #fff;
+        font: inherit;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
+      button:hover:not(:disabled) {
+        background: #12568e;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      #status {
+        margin: 16px 0 0;
+      }
+
+      #status.error {
+        color: #a52828;
+      }
+
+      #result {
+        margin-top: 28px;
+        padding-top: 24px;
+        border-top: 1px solid #e1e8ef;
+      }
+
+      #result h2 {
+        margin: 0 0 16px;
+        font-size: 1.3rem;
+      }
+
+      #result h3 {
+        margin: 20px 0 8px;
+        font-size: 1rem;
+      }
+
+      #complaints {
+        padding-left: 22px;
+        line-height: 1.7;
+      }
+
+      @media (max-width: 520px) {
+        body {
+          padding: 20px 12px;
+        }
+
+        main {
+          padding: 22px 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Product review summary</h1>
+
+      <form id="review-form">
+        <label for="reviews">Customer reviews</label>
+        <textarea id="reviews" name="reviews" placeholder="The picture quality is excellent, but the battery doesn't last long.&#10;Great value and easy to set up." required></textarea>
+        <button id="submit-button" type="submit">Summarize</button>
+      </form>
+
+      <p id="status" role="status" aria-live="polite" hidden></p>
+
+      <section id="result" aria-labelledby="result-title" hidden>
+        <h2 id="result-title">Summary</h2>
+        <p><strong>Overall sentiment:</strong> <span id="sentiment"></span></p>
+        <p><strong>Summary:</strong> <span id="summary"></span></p>
+        <h3>Top complaints</h3>
+        <ul id="complaints"></ul>
+      </section>
+    </main>
+
+    <script>
+      const form = document.querySelector("#review-form");
+      const reviewInput = document.querySelector("#reviews");
+      const submitButton = document.querySelector("#submit-button");
+      const status = document.querySelector("#status");
+      const result = document.querySelector("#result");
+      const sentiment = document.querySelector("#sentiment");
+      const summary = document.querySelector("#summary");
+      const complaints = document.querySelector("#complaints");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const reviews = reviewInput.value
+          .split(/\r?\n/)
+          .map((review) => review.trim())
+          .filter(Boolean);
+
+        if (reviews.length === 0) {
+          status.textContent = "Enter at least one review to continue.";
+          status.className = "error";
+          status.hidden = false;
+          result.hidden = true;
+          return;
+        }
+
+        submitButton.disabled = true;
+        status.textContent = "Analyzing reviews…";
+        status.className = "";
+        status.hidden = false;
+        result.hidden = true;
+
+        try {
+          const response = await fetch("/api/summarize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reviews }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.detail || "The reviews could not be summarized.");
+          }
+
+          sentiment.textContent = data.sentiment;
+          summary.textContent = data.summary;
+          complaints.replaceChildren(
+            ...data.complaints.map((complaint) => {
+              const item = document.createElement("li");
+              item.textContent = complaint;
+              return item;
+            }),
+          );
+          result.hidden = false;
+          status.hidden = true;
+        } catch (error) {
+          status.textContent = error.message || "Something went wrong. Please try again.";
+          status.className = "error";
+        } finally {
+          submitButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
